@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Screen Viewer</title>
+</head>
+<body style="text-align: center; padding-top: 50px;">
+    <h1 style="font-family: Arial, sans-serif;">View Shared Screen</h1>
+    <video id="screenVideo" autoplay controls style="border: 1px solid #000; width: 80%; height: auto;"></video>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io(); // Connect to the signaling server
+        const videoElement = document.getElementById('screenVideo');
+        const peer = new RTCPeerConnection();
+
+        peer.ontrack = (event) => {
+            videoElement.srcObject = event.streams[0];
+        };
+
+        peer.onicecandidate = (event) => {
+            if (event.candidate) {
+                socket.emit('signal', { candidate: event.candidate });
+            }
+        };
+
+        // Handle the offer from the client
+        socket.on('signal', async (data) => {
+            if (data.offer) {
+                await peer.setRemoteDescription(new RTCSessionDescription(data.offer));
+
+                // Create and send the answer
+                const answer = await peer.createAnswer();
+                await peer.setLocalDescription(answer);
+                socket.emit('signal', { answer: peer.localDescription });
+            } else if (data.candidate) {
+                peer.addIceCandidate(new RTCIceCandidate(data.candidate));
+            }
+        });
+
+        console.log("Waiting for screen share...");
+    </script>
+</body>
+</html>

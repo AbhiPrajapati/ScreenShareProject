@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Screen Sharing Client</title>
+</head>
+<body style="text-align: center; padding-top: 50px;">
+    <h1 style="font-family: Arial, sans-serif;">Start Screen Sharing</h1>
+    <button onclick="startScreenShare()" style="padding: 10px 20px; font-size: 16px; cursor: pointer;">
+        Share Screen
+    </button>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io(); // Connect to the signaling server
+
+        async function startScreenShare() {
+            try {
+                const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                const peer = new RTCPeerConnection();
+
+                // Send screen stream to the peer
+                screenStream.getTracks().forEach(track => peer.addTrack(track, screenStream));
+
+                peer.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        socket.emit('signal', { candidate: event.candidate });
+                    }
+                };
+
+                // Send the offer to the signaling server
+                const offer = await peer.createOffer();
+                await peer.setLocalDescription(offer);
+                socket.emit('signal', { offer: peer.localDescription });
+
+                // Receive answer from the viewer
+                socket.on('signal', (data) => {
+                    if (data.answer) {
+                        peer.setRemoteDescription(new RTCSessionDescription(data.answer));
+                    }
+                });
+
+                console.log("Screen sharing started!");
+
+            } catch (error) {
+                console.error('Error during screen sharing:', error);
+                alert('Screen sharing failed or was denied.');
+            }
+        }
+    </script>
+</body>
+</html>
